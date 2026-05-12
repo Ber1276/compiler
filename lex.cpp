@@ -106,7 +106,7 @@ unordered_map<string, int> keywordTable = buildTable(
     1);
 
 unordered_map<string, int> operatorTable = buildTable(
-    {"+", "-", "*", "/", "=", "==", "!=", "<", ">", "(", ")", "{", "}", ";"},
+    {"+", "-", "*", "/", "=", "==", "!=", "<", ">", "(", ")", "{", "}", ";"}, // 19-23 mean seprator
     10);
 
 string inputBuffer;
@@ -183,7 +183,7 @@ vector<Token> analyze()
             }
             else
             {
-                tokens.emplace_back(0, word, -1);
+                tokens.emplace_back(0, word, -1); // 0 mean id
             }
             continue;
         }
@@ -212,9 +212,52 @@ int main()
     inputBuffer = PreprocessFile("test.c");
 
     vector<Token> tokens = analyze();
+    // 0 标识符 1-8 关键字 25 常数 10-18 运算符 19-23 分隔符
     for (const auto &t : tokens)
     {
-        cout << t.code << " " << t.text << " " << t.value << endl;
+        string category;
+        switch (t.code)
+        {
+        case 0:
+            category = "id";
+            break;
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+            category = "keyword";
+            break;
+        case 25:
+            category = "const";
+            break;
+        case 10:
+        case 11:
+        case 12:
+        case 13:
+        case 14:
+        case 15:
+        case 16:
+        case 17:
+        case 18:
+            category = "operator";
+            break;
+        case 19:
+        case 20:
+        case 21:
+        case 22:
+        case 23:
+            category = "separator";
+            break;
+
+        default:
+            category = "unknown";
+            break;
+        }
+        cout << category << "------" << t.code << "--------" << t.text << "-------" << t.value << endl;
     }
     return 0;
 }
