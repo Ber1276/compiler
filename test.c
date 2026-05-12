@@ -1,5 +1,12 @@
-int a = 1; // 注释
+int a;
+int b;
+int c;
 /*
-  block comment
+lao tie 666
 */
-int b = 2;
+a = 2;
+b = 1; // 666
+if (a > b)
+    c = a + b;
+else
+    c = a - b;
