@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <cctype>
+#include "lex.h"
 using namespace std;
 
 string PreprocessFile(const string &filename)
@@ -73,23 +74,6 @@ string PreprocessFile(const string &filename)
     return processed;
 }
 
-struct Token
-{
-    int code;    // 种别
-    string text; // 文本
-    int value;   // 数值
-
-    Token(int c, string t, int v) : code(c), text(t), value(v) {}
-}; // token data structure
-
-// // keyword
-// unordered_map<string, int> keywordTable = {
-//     {"int", 1}, {"float", 2}, {"if", 3}, {"else", 4}, {"while", 5}, {"for", 6}, {"void", 7}, {"return", 8}};
-
-// // operator
-// unordered_map<string, int> operatorTable = {
-//     {"+", 10}, {"-", 11}, {"*", 12}, {"/", 13}, {"=", 14}, {"==", 15}, {"!=", 16}, {"<", 17}, {">", 18}, {"(", 20}, {")", 21}, {"{", 22}, {"}", 23}, {";", 24}};
-
 unordered_map<string, int> buildTable(initializer_list<string> items, int startCode)
 {
     unordered_map<string, int> table;
@@ -101,18 +85,42 @@ unordered_map<string, int> buildTable(initializer_list<string> items, int startC
     return table;
 }
 
-unordered_map<string, int> keywordTable = buildTable(
-    {"int", "float", "if", "else", "while", "for", "void", "return"},
-    1);
+Lexer::Lexer(const string &source) : inputBuffer(source), pos(0)
+{
+    initTables();
+}
 
-unordered_map<string, int> operatorTable = buildTable(
-    {"+", "-", "*", "/", "=", "==", "!=", "<", ">", "(", ")", "{", "}", ";"}, // 19-23 mean seprator
-    10);
+void Lexer::reset(const string &source)
+{
+    inputBuffer = source;
+    pos = 0;
+}
 
-string inputBuffer;
-int pos = 0;
+bool Lexer::isEnd() const
+{
+    return pos >= inputBuffer.size();
+}
+void Lexer::initTables()
+{
 
-void skipWhitespace()
+    keywordTable = buildTable(
+        {"int", "float", "if", "else", "while", "for", "void", "return"},
+        1);
+
+    operatorTable = buildTable(
+        {"+", "-", "*", "/", "=", "==", "!=", "<", ">", "(", ")", "{", "}", ";"}, // 19-23 mean seprator
+        10);
+}
+// // keyword
+// unordered_map<string, int> keywordTable = {
+//     {"int", 1}, {"float", 2}, {"if", 3}, {"else", 4}, {"while", 5}, {"for", 6}, {"void", 7}, {"return", 8}};
+
+// // operator
+// unordered_map<string, int> operatorTable = {
+//     {"+", 10}, {"-", 11}, {"*", 12}, {"/", 13}, {"=", 14}, {"==", 15}, {"!=", 16}, {"<", 17}, {">", 18}, {"(", 20}, {")", 21}, {"{", 22}, {"}", 23}, {";", 24}};
+// 改成按照基数自增的,方便后面改
+
+void Lexer::skipWhitespace()
 {
     while (pos < inputBuffer.size() && isspace(inputBuffer[pos]))
     {
@@ -120,7 +128,7 @@ void skipWhitespace()
     }
 }
 
-string getOperator()
+string Lexer::getOperator()
 {
     string op;
     char c = inputBuffer[pos];
@@ -141,123 +149,110 @@ string getOperator()
     return op;
 }
 
-vector<Token> analyze()
+// analyze 是第一版的分析代码,整体分析传入的所有字符串
+// vector<Token> analyze()
+// {
+//     vector<Token> tokens;
+//     while (pos < inputBuffer.size())
+//     {
+//         skipWhitespace();
+//         if (pos >= inputBuffer.size())
+//             break;
+//         char c = inputBuffer[pos];
+//         // ----number----
+//         if (isdigit(c))
+//         {
+//             string num;
+//             while (pos < inputBuffer.size() && isdigit(inputBuffer[pos]))
+//             {
+//                 num += inputBuffer[pos];
+//                 pos++;
+//             }
+//             int value = stoi(num);
+//             tokens.emplace_back(25, num, value); // 25 mean digital
+//             continue;
+//         }
+//         //-----keyword---
+//         if (isalpha(c) || c == '_')
+//         {
+//             string word;
+//             while (pos < inputBuffer.size() && (isalnum(inputBuffer[pos]) || inputBuffer[pos] == '_'))
+//             {
+//                 word += inputBuffer[pos];
+//                 pos++;
+//             }
+//             if (keywordTable.count(word))
+//             {
+//                 int code = keywordTable[word];
+//                 tokens.emplace_back(code, word, -1);
+//             }
+//             else
+//             {
+//                 tokens.emplace_back(0, word, -1); // 0 mean id
+//             }
+//             continue;
+//         }
+//         //-----operator--
+//         string op = getOperator();
+//         if (operatorTable.count(op))
+//         {
+//             int code = operatorTable[op];
+//             tokens.emplace_back(code, op, -1);
+//         }
+//         else if (!isspace(op[0]))
+//         {
+//             cout << "error , cant recognize the word" << op << endl;
+//         }
+//     }
+//     return tokens;
+// }
+
+Token Lexer::nextToken()
 {
-    vector<Token> tokens;
-    while (pos < inputBuffer.size())
+
+    skipWhitespace();
+    if (pos >= inputBuffer.size())
+        return Token(-1, "", -1);
+    char c = inputBuffer[pos];
+    // ----number----
+    if (isdigit(c))
     {
-        skipWhitespace();
-        if (pos >= inputBuffer.size())
-            break;
-        char c = inputBuffer[pos];
-
-        // ----number----
-        if (isdigit(c))
+        string num;
+        while (pos < inputBuffer.size() && isdigit(inputBuffer[pos]))
         {
-
-            string num;
-            while (pos < inputBuffer.size() && isdigit(inputBuffer[pos]))
-            {
-                num += inputBuffer[pos];
-                pos++;
-            }
-            int value = stoi(num);
-            tokens.emplace_back(25, num, value); // 25 mean digital
-            continue;
+            num += inputBuffer[pos];
+            pos++;
         }
-
-        //-----keyword---
-        if (isalpha(c) || c == '_')
+        int value = stoi(num);
+        return Token(25, num, value); // 25 mean digital
+    }
+    //-----keyword---
+    if (isalpha(c) || c == '_')
+    {
+        string word;
+        while (pos < inputBuffer.size() && (isalnum(inputBuffer[pos]) || inputBuffer[pos] == '_'))
         {
-            string word;
-            while (pos < inputBuffer.size() && (isalnum(inputBuffer[pos]) || inputBuffer[pos] == '_'))
-            {
-                word += inputBuffer[pos];
-                pos++;
-            }
-
-            if (keywordTable.count(word))
-            {
-                int code = keywordTable[word];
-                tokens.emplace_back(code, word, -1);
-            }
-            else
-            {
-                tokens.emplace_back(0, word, -1); // 0 mean id
-            }
-            continue;
+            word += inputBuffer[pos];
+            pos++;
         }
-        //-----operator--
-        string op = getOperator();
-        if (operatorTable.count(op))
+        if (keywordTable.count(word))
         {
-            int code = operatorTable[op];
-            tokens.emplace_back(code, op, -1);
+            int code = keywordTable[word];
+            return Token(code, word, -1);
         }
-        else if (!isspace(op[0]))
+        else
         {
-            cout << "error , cant recognize the word" << op << endl;
+            return Token(0, word, -1); // 0 mean id
         }
     }
-    return tokens;
-}
-
-int main()
-{
-    // test1--- pre process
-    cout << "pre process result" << endl
-         << PreprocessFile("test.c") << endl
-         << endl;
-
-    inputBuffer = PreprocessFile("test.c");
-
-    vector<Token> tokens = analyze();
-    // 0 标识符 1-8 关键字 25 常数 10-18 运算符 19-23 分隔符
-    for (const auto &t : tokens)
+    //-----operator--
+    string op = getOperator();
+    if (operatorTable.count(op))
     {
-        string category;
-        switch (t.code)
-        {
-        case 0:
-            category = "id";
-            break;
-        case 1:
-        case 2:
-        case 3:
-        case 4:
-        case 5:
-        case 6:
-        case 7:
-        case 8:
-            category = "keyword";
-            break;
-        case 25:
-            category = "const";
-            break;
-        case 10:
-        case 11:
-        case 12:
-        case 13:
-        case 14:
-        case 15:
-        case 16:
-        case 17:
-        case 18:
-            category = "operator";
-            break;
-        case 19:
-        case 20:
-        case 21:
-        case 22:
-        case 23:
-            category = "separator";
-            break;
-
-        default:
-            category = "unknown";
-            break;
-        }
-        cout << category << "------" << t.code << "--------" << t.text << "-------" << t.value << endl;
+        int code = operatorTable[op];
+        return Token(code, op, -1);
     }
-    return 0;
+
+    cout << "error , cant recognize the word" << op << endl;
+    return Token(-2, op, -1);
 }
