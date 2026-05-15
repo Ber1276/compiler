@@ -15,6 +15,9 @@ struct Token
 string PreprocessFile(const string &filename); // 声明
 unordered_map<string, int> buildTable(initializer_list<string> items, int startCode);
 
+// 0 标识符 1-8 关键字 25 常数 10-18 运算符 19-23 分隔符
+static string tokenCategory(int code);
+
 class Lexer
 {
 public:
