@@ -258,7 +258,7 @@ Token Lexer::nextToken()
 }
 
 // 0 标识符 1-8 关键字 25 常数 10-18 运算符 19-23 分隔符
-static string tokenCategory(int code)
+string tokenCategory(int code)
 {
     switch (code)
     {

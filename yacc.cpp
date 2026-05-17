@@ -59,7 +59,7 @@ void Parser::buildGrammar()
     productions.push_back({"L", {"int"}});
     productions.push_back({"L", {"float"}});
 
-    productions.push_back({"S", {"S", ";", "Stmt"}});
+    productions.push_back({"S", {"S", "Stmt"}}); // 这里把";"删了,因为有问题
     productions.push_back({"S", {"Stmt"}});
 
     productions.push_back({"Stmt", {"Assign"}});
@@ -149,6 +149,7 @@ void Parser::buildGrammar()
         "P'", "P", "D", "L", "S", "Stmt", "Assign", "IfStmt", "StmtNoElse", "WhileStmt", "C", "E", "T", "F"};
 }
 
+// 创建first集
 void Parser::buildFirstSets()
 {
     bool changed = true;
@@ -186,7 +187,7 @@ void Parser::buildFirstSets()
         }
     }
 }
-// 上面的只能处理产生式,下面的用来处理拿到一个序列的first
+// 产生一个first_s集
 set<string> Parser::firstOfSequence(const vector<string> &symbols) const
 {
     set<string> result;
@@ -275,6 +276,8 @@ set<LR1Item> Parser::closure(const set<LR1Item> &items) const
     }
     return result;
 }
+
+// goto从一个图输入symbol产生下一个图(闭包)
 set<LR1Item> Parser::goTo(const set<LR1Item> &items, const string &symbol) const
 {
     set<LR1Item> moved;
@@ -332,6 +335,7 @@ string Parser::signature(const set<LR1Item> &items) const
     return result;
 }
 
+// 图
 void Parser::buildCanonicalCollection()
 {
     set<LR1Item> startItems;
@@ -385,6 +389,7 @@ int Parser::stateId(const set<LR1Item> &items) const
     }
     return -1;
 }
+
 // 生成表的核心函数
 void Parser::buildTables()
 {
@@ -488,6 +493,7 @@ Parser::Parser(Lexer &lexer) : lexer(lexer), lookahead(-1, "$", -1)
     buildTables();
 }
 
+// 前递
 void Parser::advance()
 {
     lookahead = lexer.nextToken();
@@ -521,10 +527,12 @@ static string terminalOf(const Token &token)
 {
     switch (token.code)
     {
+    case -1:
+        return "$";
     case 0:
         return "id";
     case 25:
-        return "num";
+        return "digits";
     case 1:
         return "int";
     case 2:
