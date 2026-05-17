@@ -43,7 +43,7 @@ int main()
     try
     {
         Parser parser(lexer);
-        bool ok = parser.parse();
+        bool ok = parser.parse(true);
         cout << (ok ? "syntax analysis passed" : "syntax analysis failed") << endl;
     }
     catch (const exception &ex)

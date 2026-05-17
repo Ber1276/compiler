@@ -1,8 +1,10 @@
 #include "lex.h"
+#include <memory>
 #include <vector>
 #include <set>
 #include <unordered_map>
 #include <map>
+#include <utility>
 #include <string>
 using namespace std;
 
@@ -48,13 +50,22 @@ struct SymbolInfo
     string type;
     bool declared; // 这个属于拓展的,用于检查先声明后使用,后面有时间实现
 };
+
+struct AstNode
+{
+    string label;
+    vector<shared_ptr<AstNode>> children;
+
+    explicit AstNode(string value) : label(std::move(value)) {}
+};
+
 static string terminalOf(const Token &token);
 
 class Parser
 {
 public:
     explicit Parser(Lexer &lexer);
-    bool parse();
+    bool parse(bool printAstTree = false);
     // void dumpTrace() const;
 
 private:
@@ -63,6 +74,9 @@ private:
     Token lookahead;
     vector<int> stateStack;
     vector<string> symbolStack;
+    vector<shared_ptr<AstNode>> astStack;
+    shared_ptr<AstNode> astRoot;
+    bool printAstTreeEnabled;
 
     // 自动构造用的
     vector<Production> productions;
@@ -90,4 +104,8 @@ private:
     int stateId(const set<LR1Item> &items) const;
     ActionEntry action(int state, const string &terminal) const;
     int goTo(int state, const string &nonterminal) const;
+    shared_ptr<AstNode> buildAstNode(const Production &prod, const vector<shared_ptr<AstNode>> &children) const;
+    void printAst(const shared_ptr<AstNode> &node) const;
+    bool shouldKeepAstChild(const string &label) const;
+    string makeLeafLabel(const Token &token) const;
 };

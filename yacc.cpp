@@ -1,4 +1,6 @@
 #include "yacc.h"
+#include <functional>
+#include <iostream>
 #include <sstream>
 #include <algorithm>
 
@@ -433,10 +435,13 @@ void Parser::buildTables()
 }
 
 // 解析函数
-bool Parser::parse()
+bool Parser::parse(bool printAstTree)
 {
+    printAstTreeEnabled = printAstTree;
     stateStack.clear();
     symbolStack.clear();
+    astStack.clear();
+    astRoot.reset();
     stateStack.push_back(0);
     symbolStack.push_back("$");
 
@@ -452,12 +457,20 @@ bool Parser::parse()
         {
             symbolStack.push_back(terminal);
             stateStack.push_back(act.value);
+
+            if (terminal != "$")
+            {
+                astStack.push_back(make_shared<AstNode>(makeLeafLabel(lookahead)));
+            }
+
             advance();
         }
         else if (act.type == ActionType::Reduce)
         {
             const Production &prod = productions[act.value];
             size_t popCount = prod.rhs.empty() ? 0 : prod.rhs.size();
+            vector<shared_ptr<AstNode>> children;
+            children.reserve(popCount);
 
             for (size_t i = 0; i < popCount; ++i)
             {
@@ -465,10 +478,20 @@ bool Parser::parse()
                     symbolStack.pop_back();
                 if (!stateStack.empty())
                     stateStack.pop_back();
+
+                if (!astStack.empty())
+                {
+                    children.push_back(astStack.back());
+                    astStack.pop_back();
+                }
             }
+
+            reverse(children.begin(), children.end());
 
             string lhs = prod.lhs;
             symbolStack.push_back(lhs);
+
+            astStack.push_back(buildAstNode(prod, children));
 
             int prevState = stateStack.back();
             int nextState = goTo(prevState, lhs);
@@ -476,6 +499,17 @@ bool Parser::parse()
         }
         else if (act.type == ActionType::Accept)
         {
+            if (!astStack.empty())
+            {
+                astRoot = astStack.back();
+            }
+
+            if (printAstTreeEnabled && astRoot)
+            {
+                cout << "syntax tree:" << endl;
+                printAst(astRoot);
+            }
+
             return true;
         }
         else
@@ -521,6 +555,264 @@ int Parser::goTo(int state, const string &nonterminal) const
         return it->second;
     }
     return -1;
+}
+
+bool Parser::shouldKeepAstChild(const string &label) const
+{
+    return label != ";" && label != "(" && label != ")" && label != "if" && label != "else" && label != "while" && label != "=" && label != "+" && label != "-" && label != "*" && label != "/" && label != "<" && label != ">" && label != "==";
+}
+
+string Parser::makeLeafLabel(const Token &token) const
+{
+    switch (token.code)
+    {
+    case 0:
+        return "id(" + token.text + ")";
+    case 25:
+        return "num(" + token.text + ")";
+    default:
+        return token.text;
+    }
+}
+
+shared_ptr<AstNode> Parser::buildAstNode(const Production &prod, const vector<shared_ptr<AstNode>> &children) const
+{
+    vector<shared_ptr<AstNode>> keptChildren;
+    keptChildren.reserve(children.size());
+    for (const auto &child : children)
+    {
+        if (child && shouldKeepAstChild(child->label))
+        {
+            keptChildren.push_back(child);
+        }
+    }
+
+    auto makeNode = [&](const string &label, const vector<shared_ptr<AstNode>> &nodeChildren) -> shared_ptr<AstNode>
+    {
+        auto node = make_shared<AstNode>(label);
+        for (const auto &child : nodeChildren)
+        {
+            if (child)
+            {
+                node->children.push_back(child);
+            }
+        }
+        return node;
+    };
+
+    if (prod.lhs == "P'")
+    {
+        return keptChildren.empty() ? makeNode("Program", {}) : keptChildren.front();
+    }
+
+    if (prod.lhs == "P")
+    {
+        return makeNode("Program", keptChildren);
+    }
+
+    if (prod.lhs == "D")
+    {
+        return makeNode("DeclList", keptChildren);
+    }
+
+    if (prod.lhs == "L")
+    {
+        return makeNode("Type(" + prod.rhs.front() + ")", {});
+    }
+
+    if (prod.lhs == "S")
+    {
+        return makeNode("StmtList", keptChildren);
+    }
+
+    if (prod.lhs == "Stmt")
+    {
+        return keptChildren.empty() ? makeNode("Stmt", {}) : keptChildren.front();
+    }
+
+    if (prod.lhs == "StmtNoElse")
+    {
+        return keptChildren.empty() ? makeNode("Stmt", {}) : keptChildren.front();
+    }
+
+    if (prod.lhs == "Assign")
+    {
+        return makeNode("Assign", keptChildren);
+    }
+
+    if (prod.lhs == "IfStmt")
+    {
+        return (prod.rhs.size() == 7) ? makeNode("IfElse", keptChildren) : makeNode("If", keptChildren);
+    }
+
+    if (prod.lhs == "WhileStmt")
+    {
+        return makeNode("While", keptChildren);
+    }
+
+    if (prod.lhs == "C")
+    {
+        string op = prod.rhs.size() >= 2 ? prod.rhs[1] : "?";
+        return makeNode("Cond(" + op + ")", keptChildren);
+    }
+
+    if (prod.lhs == "E")
+    {
+        if (prod.rhs.size() == 3)
+        {
+            return makeNode(prod.rhs[1] == "+" ? "Add" : "Sub", keptChildren);
+        }
+        return keptChildren.empty() ? makeNode("Expr", {}) : keptChildren.front();
+    }
+
+    if (prod.lhs == "T")
+    {
+        if (prod.rhs.size() == 3)
+        {
+            return makeNode(prod.rhs[1] == "*" ? "Mul" : "Div", keptChildren);
+        }
+        return keptChildren.empty() ? makeNode("Term", {}) : keptChildren.front();
+    }
+
+    if (prod.lhs == "F")
+    {
+        if (prod.rhs.size() == 3)
+        {
+            return keptChildren.empty() ? makeNode("Expr", {}) : keptChildren.front();
+        }
+        return keptChildren.empty() ? makeNode("Factor", {}) : keptChildren.front();
+    }
+
+    if (keptChildren.size() == 1)
+    {
+        return keptChildren.front();
+    }
+
+    return makeNode(prod.lhs, keptChildren);
+}
+
+void Parser::printAst(const shared_ptr<AstNode> &node) const
+{
+    if (!node)
+    {
+        return;
+    }
+
+    struct Placement
+    {
+        size_t x;
+        string label;
+    };
+
+    vector<vector<Placement>> rows;
+    constexpr size_t gap = 4;
+
+    function<size_t(const shared_ptr<AstNode> &)> measure = [&](const shared_ptr<AstNode> &current) -> size_t
+    {
+        if (!current)
+        {
+            return 0;
+        }
+
+        size_t labelWidth = current->label.size();
+        if (current->children.empty())
+        {
+            return labelWidth;
+        }
+
+        size_t childrenWidth = 0;
+        for (size_t i = 0; i < current->children.size(); ++i)
+        {
+            childrenWidth += measure(current->children[i]);
+            if (i + 1 < current->children.size())
+            {
+                childrenWidth += gap;
+            }
+        }
+
+        return max(labelWidth, childrenWidth);
+    };
+
+    function<void(const shared_ptr<AstNode> &, size_t, size_t)> place = [&](const shared_ptr<AstNode> &current, size_t depth, size_t left) -> void
+    {
+        if (!current)
+        {
+            return;
+        }
+
+        if (rows.size() <= depth)
+        {
+            rows.resize(depth + 1);
+        }
+
+        size_t subtreeWidth = measure(current);
+        size_t labelWidth = current->label.size();
+        size_t labelX = left + (subtreeWidth - labelWidth) / 2;
+        rows[depth].push_back({labelX, current->label});
+
+        if (current->children.empty())
+        {
+            return;
+        }
+
+        size_t childrenWidth = 0;
+        vector<size_t> childWidths;
+        childWidths.reserve(current->children.size());
+        for (const auto &child : current->children)
+        {
+            size_t width = measure(child);
+            childWidths.push_back(width);
+            childrenWidth += width;
+        }
+        if (current->children.size() > 1)
+        {
+            childrenWidth += gap * (current->children.size() - 1);
+        }
+
+        size_t childLeft = left + (subtreeWidth - childrenWidth) / 2;
+        for (size_t i = 0; i < current->children.size(); ++i)
+        {
+            place(current->children[i], depth + 1, childLeft);
+            childLeft += childWidths[i] + gap;
+        }
+    };
+
+    place(node, 0, 0);
+
+    size_t maxWidth = 0;
+    for (const auto &row : rows)
+    {
+        for (const auto &item : row)
+        {
+            maxWidth = max(maxWidth, item.x + item.label.size());
+        }
+    }
+
+    auto trimRight = [](string text) -> string
+    {
+        while (!text.empty() && text.back() == ' ')
+        {
+            text.pop_back();
+        }
+        return text;
+    };
+
+    for (const auto &row : rows)
+    {
+        string line(maxWidth, ' ');
+        for (const auto &item : row)
+        {
+            if (line.size() < item.x + item.label.size())
+            {
+                line.resize(item.x + item.label.size(), ' ');
+            }
+            for (size_t i = 0; i < item.label.size(); ++i)
+            {
+                line[item.x + i] = item.label[i];
+            }
+        }
+        cout << trimRight(line) << endl;
+    }
 }
 
 static string terminalOf(const Token &token)
