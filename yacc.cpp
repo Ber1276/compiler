@@ -3,6 +3,8 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <iomanip> //输出好看一些
+#include <stdexcept>
 
 // 文法整理一遍
 
@@ -67,6 +69,7 @@ void Parser::buildGrammar()
     productions.push_back({"Stmt", {"Assign"}});
     productions.push_back({"Stmt", {"IfStmt"}});
     productions.push_back({"Stmt", {"WhileStmt"}});
+    productions.push_back({"Stmt", {"StmtNoElse"}});
 
     productions.push_back({"Assign", {"id", "=", "E", ";"}});
 
@@ -441,6 +444,12 @@ bool Parser::parse(bool printAstTree)
     stateStack.clear();
     symbolStack.clear();
     astStack.clear();
+    semanticStack.clear();
+    tacTable.clear();
+    symbolTable.clear();
+    currentDeclType.clear();
+    tempCounter = 0;
+    labelCounter = 0;
     astRoot.reset();
     stateStack.push_back(0);
     symbolStack.push_back("$");
@@ -453,7 +462,7 @@ bool Parser::parse(bool printAstTree)
         string terminal = terminalOf(lookahead);
         ActionEntry act = action(state, terminal);
 
-        if (act.type == ActionType::Shift)
+        if (act.type == ActionType::Shift) // 移进
         {
             symbolStack.push_back(terminal);
             stateStack.push_back(act.value);
@@ -461,6 +470,29 @@ bool Parser::parse(bool printAstTree)
             if (terminal != "$")
             {
                 astStack.push_back(make_shared<AstNode>(makeLeafLabel(lookahead)));
+                SemanticValue value;
+                value.place = lookahead.text;
+                value.name = lookahead.text;
+                switch (lookahead.code)
+                {
+                case 0: // 标识符
+                    value.name = lookahead.text;
+                    value.place = lookahead.text;
+                    break;
+                case 25: // digits
+                    value.place = lookahead.text;
+                    break;
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                case 5:
+                    value.type = lookahead.text; // type如int,float之类
+                    break;
+                default:
+                    break;
+                }
+                semanticStack.push_back(value);
             }
 
             advance();
@@ -470,7 +502,9 @@ bool Parser::parse(bool printAstTree)
             const Production &prod = productions[act.value];
             size_t popCount = prod.rhs.empty() ? 0 : prod.rhs.size();
             vector<shared_ptr<AstNode>> children;
+            vector<SemanticValue> semanticChildren;
             children.reserve(popCount);
+            semanticChildren.reserve(popCount);
 
             for (size_t i = 0; i < popCount; ++i)
             {
@@ -484,14 +518,22 @@ bool Parser::parse(bool printAstTree)
                     children.push_back(astStack.back());
                     astStack.pop_back();
                 }
+
+                if (!semanticStack.empty())
+                {
+                    semanticChildren.push_back(semanticStack.back());
+                    semanticStack.pop_back();
+                }
             }
 
             reverse(children.begin(), children.end());
+            reverse(semanticChildren.begin(), semanticChildren.end());
 
             string lhs = prod.lhs;
             symbolStack.push_back(lhs);
 
             astStack.push_back(buildAstNode(prod, children));
+            semanticStack.push_back(buildSemanticValue(prod, semanticChildren));
 
             int prevState = stateStack.back();
             int nextState = goTo(prevState, lhs);
@@ -502,6 +544,11 @@ bool Parser::parse(bool printAstTree)
             if (!astStack.empty())
             {
                 astRoot = astStack.back();
+            }
+
+            if (!semanticStack.empty())
+            {
+                tacTable = semanticStack.back().code; // 结果输出
             }
 
             if (printAstTreeEnabled && astRoot)
@@ -519,8 +566,40 @@ bool Parser::parse(bool printAstTree)
     }
 }
 
+void Parser::printSymbolTable() const
+{
+    cout << endl
+         << "symbol table:" << endl;
+    cout << left << setw(16) << "name" << setw(12) << "type" << setw(12) << "declared" << endl;
+    for (const auto &entry : symbolTable)
+    {
+        cout << left << setw(16) << entry.second.name
+             << setw(12) << entry.second.type
+             << setw(12) << (entry.second.declared ? "yes" : "no") << endl;
+    }
+}
+
+void Parser::printTacTable() const
+{
+    cout << endl
+         << "three address code:" << endl;
+    cout << left << setw(8) << "idx" << setw(14) << "op" << setw(14) << "arg1" << setw(14) << "arg2" << setw(14) << "result" << endl;
+
+    for (size_t i = 0; i < tacTable.size(); ++i)
+    {
+        const TacEntry &item = tacTable[i];
+        cout << left << setw(8) << i
+             << setw(14) << item.op
+             << setw(14) << item.arg1
+             << setw(14) << item.arg2
+             << setw(14) << item.result << endl;
+    }
+}
+
 Parser::Parser(Lexer &lexer) : lexer(lexer), lookahead(-1, "$", -1)
 {
+    tempCounter = 0;
+    labelCounter = 0;
     buildGrammar();
     buildFirstSets();
     buildStateGraph();
@@ -555,6 +634,326 @@ int Parser::goTo(int state, const string &nonterminal) const
         return it->second;
     }
     return -1;
+}
+
+vector<TacEntry> Parser::mergeCode(const vector<TacEntry> &left, const vector<TacEntry> &right)
+{
+    vector<TacEntry> merged = left;
+    merged.insert(merged.end(), right.begin(), right.end());
+    return merged;
+}
+
+string Parser::newTemp()
+{
+    return "t" + to_string(++tempCounter);
+}
+
+string Parser::newLabel()
+{
+    return "L" + to_string(++labelCounter);
+}
+
+void Parser::emitTac(vector<TacEntry> &code, const string &op, const string &arg1, const string &arg2, const string &result) const
+{
+    code.push_back(TacEntry{op, arg1, arg2, result});
+}
+
+SemanticValue Parser::buildSemanticValue(const Production &prod, const vector<SemanticValue> &children)
+{
+    SemanticValue result;
+    // 下面定义了语义
+    if (prod.lhs == "P'")
+    {
+        if (!children.empty())
+        {
+            result = children.front();
+        }
+        return result;
+    }
+
+    if (prod.lhs == "P")
+    {
+        if (children.size() == 2)
+        {
+            result.code = mergeCode(children[0].code, children[1].code);
+        }
+        else if (!children.empty())
+        {
+            result = children.front();
+        }
+        return result;
+    }
+
+    // 变量声明规则
+    if (prod.lhs == "D")
+    {
+        if (prod.rhs.empty())
+        {
+            return result;
+        }
+
+        if (children.size() == 4)
+        {
+            const string typeName = children[0].type.empty() ? children[0].place : children[0].type;
+            const string identifier = children[1].name.empty() ? children[1].place : children[1].name;
+
+            if (identifier.empty())
+            {
+                throw runtime_error("语义错误: 声明语句缺少标识符");
+            }
+
+            if (symbolTable.count(identifier))
+            {
+                throw runtime_error("语义错误: 标识符重复声明 -> " + identifier);
+            }
+
+            symbolTable[identifier] = SymbolInfo{identifier, typeName, true};
+            currentDeclType = typeName;
+            result.code = children[3].code;
+        }
+        return result;
+    }
+
+    if (prod.lhs == "L")
+    {
+        if (!children.empty())
+        {
+            result.type = !children[0].type.empty() ? children[0].type : children[0].place;
+            result.place = result.type;
+        }
+        return result;
+    }
+
+    if (prod.lhs == "S")
+    {
+        if (children.size() == 2)
+        {
+            result.code = mergeCode(children[0].code, children[1].code);
+            return result;
+        }
+        if (!children.empty())
+        {
+            return children.front();
+        }
+        return result;
+    }
+
+    if (prod.lhs == "Stmt")
+    {
+        if (!children.empty())
+        {
+            return children.front();
+        }
+        return result;
+    }
+
+    // if的格式
+    if (prod.lhs == "StmtNoElse")
+    {
+        if (children.size() == 7)
+        {
+            const SemanticValue &cond = children[2];
+            const SemanticValue &thenStmt = children[4];
+            const SemanticValue &elseStmt = children[6];
+
+            const string trueLabel = newLabel();
+            const string falseLabel = newLabel();
+            const string endLabel = newLabel();
+
+            result.code = mergeCode(cond.code, vector<TacEntry>{});
+            emitTac(result.code, "if" + cond.relop, cond.leftPlace, cond.rightPlace, trueLabel);
+            emitTac(result.code, "goto", "", "", falseLabel);
+            emitTac(result.code, "label", "", "", trueLabel);
+            result.code = mergeCode(result.code, thenStmt.code);
+            emitTac(result.code, "goto", "", "", endLabel);
+            emitTac(result.code, "label", "", "", falseLabel);
+            result.code = mergeCode(result.code, elseStmt.code);
+            emitTac(result.code, "label", "", "", endLabel);
+            return result;
+        }
+
+        if (!children.empty())
+        {
+            return children.front();
+        }
+        return result;
+    }
+
+    // 赋值加了变量定义判断
+    if (prod.lhs == "Assign")
+    {
+        if (children.size() == 4)
+        {
+            const string identifier = children[0].name.empty() ? children[0].place : children[0].name;
+            const string expressionPlace = children[2].place.empty() ? children[2].name : children[2].place;
+
+            auto symbolIt = symbolTable.find(identifier);
+            if (symbolIt == symbolTable.end())
+            {
+                throw runtime_error("语义错误: 变量未声明 -> " + identifier);
+            }
+
+            result.code = mergeCode(children[0].code, children[2].code);
+            emitTac(result.code, "=", expressionPlace, "", identifier);
+            result.place = identifier;
+            result.type = symbolIt->second.type;
+        }
+        return result;
+    }
+
+    if (prod.lhs == "IfStmt")
+    {
+        if (children.size() == 7)
+        {
+            const SemanticValue &cond = children[2];
+            const SemanticValue &thenStmt = children[4];
+            const SemanticValue &elseStmt = children[6];
+
+            const string trueLabel = newLabel();
+            const string falseLabel = newLabel();
+            const string endLabel = newLabel();
+
+            result.code = mergeCode(cond.code, {});
+            emitTac(result.code, "if" + cond.relop, cond.leftPlace, cond.rightPlace, trueLabel);
+            emitTac(result.code, "goto", "", "", falseLabel);
+            emitTac(result.code, "label", "", "", trueLabel);
+            result.code = mergeCode(result.code, thenStmt.code);
+            emitTac(result.code, "goto", "", "", endLabel);
+            emitTac(result.code, "label", "", "", falseLabel);
+            result.code = mergeCode(result.code, elseStmt.code);
+            emitTac(result.code, "label", "", "", endLabel);
+        }
+        else if (children.size() == 5)
+        {
+            const SemanticValue &cond = children[2];
+            const SemanticValue &thenStmt = children[4];
+
+            const string trueLabel = newLabel();
+            const string endLabel = newLabel();
+
+            result.code = mergeCode(cond.code, {});
+            emitTac(result.code, "if" + cond.relop, cond.leftPlace, cond.rightPlace, trueLabel);
+            emitTac(result.code, "goto", "", "", endLabel);
+            emitTac(result.code, "label", "", "", trueLabel);
+            result.code = mergeCode(result.code, thenStmt.code);
+            emitTac(result.code, "label", "", "", endLabel);
+        }
+        return result;
+    }
+
+    if (prod.lhs == "WhileStmt")
+    {
+        if (children.size() == 5)
+        {
+            const SemanticValue &cond = children[2];
+            const SemanticValue &body = children[4];
+
+            const string beginLabel = newLabel();
+            const string bodyLabel = newLabel();
+            const string endLabel = newLabel();
+
+            emitTac(result.code, "label", "", "", beginLabel);
+            result.code = mergeCode(result.code, cond.code);
+            emitTac(result.code, "if" + cond.relop, cond.leftPlace, cond.rightPlace, bodyLabel);
+            emitTac(result.code, "goto", "", "", endLabel);
+            emitTac(result.code, "label", "", "", bodyLabel);
+            result.code = mergeCode(result.code, body.code);
+            emitTac(result.code, "goto", "", "", beginLabel);
+            emitTac(result.code, "label", "", "", endLabel);
+        }
+        return result;
+    }
+
+    if (prod.lhs == "C")
+    {
+        if (children.size() == 3)
+        {
+            result.code = mergeCode(children[0].code, children[2].code);
+            result.relop = prod.rhs[1];
+            result.leftPlace = children[0].place.empty() ? children[0].name : children[0].place;
+            result.rightPlace = children[2].place.empty() ? children[2].name : children[2].place;
+        }
+        return result;
+    }
+
+    if (prod.lhs == "E")
+    {
+        if (children.size() == 3)
+        {
+            const string leftPlace = children[0].place.empty() ? children[0].name : children[0].place;
+            const string rightPlace = children[2].place.empty() ? children[2].name : children[2].place;
+            const string temp = newTemp();
+
+            result.code = mergeCode(children[0].code, children[2].code);
+            emitTac(result.code, prod.rhs[1], leftPlace, rightPlace, temp);
+            result.place = temp;
+            return result;
+        }
+
+        if (!children.empty())
+        {
+            return children.front();
+        }
+        return result;
+    }
+
+    if (prod.lhs == "T")
+    {
+        if (children.size() == 3)
+        {
+            const string leftPlace = children[0].place.empty() ? children[0].name : children[0].place;
+            const string rightPlace = children[2].place.empty() ? children[2].name : children[2].place;
+            const string temp = newTemp();
+
+            result.code = mergeCode(children[0].code, children[2].code);
+            emitTac(result.code, prod.rhs[1], leftPlace, rightPlace, temp);
+            result.place = temp;
+            return result;
+        }
+
+        if (!children.empty())
+        {
+            return children.front();
+        }
+        return result;
+    }
+
+    if (prod.lhs == "F")
+    {
+        if (children.size() == 3)
+        {
+            result = children[1];
+            return result;
+        }
+
+        if (children.size() == 1)
+        {
+            result = children[0];
+            if (prod.rhs[0] == "id")
+            {
+                const string identifier = result.name.empty() ? result.place : result.name;
+                if (symbolTable.count(identifier) == 0)
+                {
+                    throw runtime_error("语义错误: 变量未声明 -> " + identifier);
+                }
+                result.place = identifier;
+            }
+            else if (prod.rhs[0] == "digits")
+            {
+                result.place = result.place.empty() ? result.name : result.place;
+            }
+            return result;
+        }
+
+        return result;
+    }
+
+    if (!children.empty())
+    {
+        return children.front();
+    }
+
+    return result;
 }
 
 bool Parser::shouldKeepAstChild(const string &label) const

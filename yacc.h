@@ -44,6 +44,25 @@ struct ActionEntry
     int value;
 };
 
+struct TacEntry // 三地址码缩写,three address code
+{
+    string op;
+    string arg1;
+    string arg2;
+    string result;
+};
+
+struct SemanticValue // 语义分析要用
+{
+    string name;
+    string type;
+    string place;
+    string relop;
+    string leftPlace;
+    string rightPlace;
+    vector<TacEntry> code;
+};
+
 struct SymbolInfo
 {
     string name;
@@ -66,6 +85,8 @@ class Parser
 public:
     explicit Parser(Lexer &lexer);
     bool parse(bool printAstTree = false);
+    void printSymbolTable() const;
+    void printTacTable() const;
     // void dumpTrace() const;
 
 private:
@@ -75,6 +96,7 @@ private:
     vector<int> stateStack;
     vector<string> symbolStack;
     vector<shared_ptr<AstNode>> astStack;
+    vector<SemanticValue> semanticStack;
     shared_ptr<AstNode> astRoot;
     bool printAstTreeEnabled;
 
@@ -90,6 +112,9 @@ private:
     vector<string> traceLines; // 分析guocheng保留
     string currentDeclType;
     vector<string> allGrammarSymbols;
+    vector<TacEntry> tacTable;
+    int tempCounter;
+    int labelCounter;
 
     // 做表用的
     void advance();
@@ -105,7 +130,12 @@ private:
     ActionEntry action(int state, const string &terminal) const;
     int goTo(int state, const string &nonterminal) const;
     shared_ptr<AstNode> buildAstNode(const Production &prod, const vector<shared_ptr<AstNode>> &children) const;
+    SemanticValue buildSemanticValue(const Production &prod, const vector<SemanticValue> &children); // 产生语义动作
     void printAst(const shared_ptr<AstNode> &node) const;
     bool shouldKeepAstChild(const string &label) const;
     string makeLeafLabel(const Token &token) const;
+    string newTemp(); // 由于三地址码的特性,需要创建临时变量
+    string newLabel();
+    static vector<TacEntry> mergeCode(const vector<TacEntry> &left, const vector<TacEntry> &right);                             // 代码合并
+    void emitTac(vector<TacEntry> &code, const string &op, const string &arg1, const string &arg2, const string &result) const; // 新增具体指令
 };

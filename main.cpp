@@ -50,6 +50,11 @@ int main(int argc, char *argv[])
     {
         Parser parser(lexer);
         bool ok = parser.parse(true);
+        if (ok) // 因为这里用的语法制导翻译,所以语法分析的同时也做了语义分析
+        {
+            parser.printSymbolTable();
+            parser.printTacTable();
+        }
         cout << (ok ? "syntax analysis passed" : "syntax analysis failed") << endl;
     }
     catch (const exception &ex)
