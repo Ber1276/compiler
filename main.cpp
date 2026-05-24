@@ -24,9 +24,15 @@ static void printTokens(Lexer &lexer)
     }
 }
 
-int main()
+int main(int argc, char *argv[])
 {
-    string source = PreprocessFile("test.c");
+    if (argc < 2)
+    {
+        cerr << "usage: " << argv[0] << " <source-file>" << endl;
+        return 1;
+    }
+
+    string source = PreprocessFile(argv[1]);
     cout << "pre process result:" << endl;
     cout << source << endl
          << endl;
