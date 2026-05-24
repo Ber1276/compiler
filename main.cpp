@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <iomanip>
 #include <cctype>
 #include <string>
 
@@ -29,6 +30,40 @@ static void printTokens(Lexer &lexer, ostream &consoleOut, ostream &fileOut)
                 << "------" << token.text
                 << "------" << token.value
                 << endl;
+    }
+}
+
+static void printSymbolTable(const Lexer &lexer, ostream &stdOut, ostream &fileOut)
+{
+    const vector<SymbolEntry> &table = lexer.getSymbolTable();
+
+    stdOut << endl
+           << "symbol table:" << endl;
+    stdOut << left << setw(16) << "name"
+           << setw(12) << "kind"
+           << setw(12) << "value" << endl;
+
+    fileOut << endl
+            << "symbol table:" << endl;
+    fileOut << left << setw(16) << "name"
+            << setw(12) << "kind"
+            << setw(12) << "value" << endl;
+
+    if (table.empty())
+    {
+        stdOut << "(empty)" << endl;
+        fileOut << "(empty)" << endl;
+        return;
+    }
+
+    for (const auto &entry : table)
+    {
+        stdOut << left << setw(16) << entry.name
+               << setw(12) << entry.kind
+               << setw(12) << entry.value << endl;
+        fileOut << left << setw(16) << entry.name
+                << setw(12) << entry.kind
+                << setw(12) << entry.value << endl;
     }
 }
 
@@ -64,16 +99,25 @@ int main(int argc, char *argv[])
 
     Lexer lexer(source);
 
-    cout << "lexical tokens:" << endl;
+    cout << "lex tokens:" << endl;
 
-    ofstream tokenFile("fuhaotable.txt");
+    ofstream tokenFile("tokentable.txt");
     if (!tokenFile)
     {
-        cerr << "failed to open fuhaotable.txt for writing" << endl;
+        cerr << "failed to open tokentable.txt for writing" << endl;
         return 1;
     }
 
     printTokens(lexer, cout, tokenFile);
+
+    ofstream symbolFile("symboltable.txt");
+    if (!symbolFile)
+    {
+        cerr << "failed to open symboltable.txt" << endl;
+        return 1;
+    }
+
+    printSymbolTable(lexer, cout, symbolFile);
 
     lexer.reset(source);
 

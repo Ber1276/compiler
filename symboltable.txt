@@ -1,0 +1,8 @@
+
+symbol table:
+name            kind        value       
+a               id          -1          
+b               id          -1          
+c               id          -1          
+2               const       2           
+1               const       1           

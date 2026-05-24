@@ -154,6 +154,13 @@ void Lexer::reset(const string &source)
 {
     shuruHuancun = source;
     pos = 0;
+    symbolTable.clear();
+    symbolNames.clear();
+}
+
+const vector<SymbolEntry> &Lexer::getSymbolTable() const
+{
+    return symbolTable;
 }
 
 bool Lexer::isEnd() const
@@ -170,6 +177,27 @@ void Lexer::initTables()
     yunsuanzibiao = buildTable(
         {"+", "-", "*", "/", "=", "==", "!=", "<", ">", "(", ")", "{", "}", ";"}, // 19-23 mean seprator
         10);
+}
+
+void Lexer::recordSymbol(const Token &token)
+{
+    if (token.code != 0 && token.code != 25)
+    {
+        return;
+    }
+
+    if (!symbolNames.insert(token.text).second)
+    {
+        return;
+    }
+
+    if (token.code == 0)
+    {
+        symbolTable.push_back({token.text, "id", -1});
+        return;
+    }
+
+    symbolTable.push_back({token.text, "const", token.value});
 }
 // // keyword
 // unordered_map<string, int> keywordTable = {
@@ -284,7 +312,9 @@ Token Lexer::nextToken()
             pos++;
         }
         int value = stoi(num);
-        return Token(25, num, value); // 25 mean digital
+        Token token(25, num, value); // 25 mean digital
+        recordSymbol(token);
+        return token;
     }
     //-----keyword---
     if (isalpha(c) || c == '_')
@@ -302,7 +332,9 @@ Token Lexer::nextToken()
         }
         else
         {
-            return Token(0, word, -1); // 0 mean id
+            Token token(0, word, -1); // 0 mean id
+            recordSymbol(token);
+            return token;
         }
     }
     //-----operator--
