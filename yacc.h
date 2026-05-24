@@ -95,11 +95,11 @@ private:
     void advance();
     void buildGrammar();
     void buildFirstSets();
-    string signature(const set<LR1Item> &items) const;
+    string qianming(const set<LR1Item> &items) const;
     set<string> firstOfSequence(const vector<string> &symbols) const;
     set<LR1Item> closure(const set<LR1Item> &items) const;
     set<LR1Item> goTo(const set<LR1Item> &items, const string &symbol) const;
-    void buildCanonicalCollection();
+    void buildStateGraph();
     void buildTables();
     int stateId(const set<LR1Item> &items) const;
     ActionEntry action(int state, const string &terminal) const;

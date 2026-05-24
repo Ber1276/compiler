@@ -50,7 +50,7 @@ void Parser::buildGrammar()
     firstSets.clear();
     allGrammarSymbols.clear();
 
-    // 1. 产生式
+    // 产生式,先一行一行手敲吧,后面优化
     productions.push_back({"P'", {"P"}});
 
     productions.push_back({"P", {"D", "S"}});
@@ -95,7 +95,7 @@ void Parser::buildGrammar()
     productions.push_back({"F", {"id"}});
     productions.push_back({"F", {"digits"}});
 
-    // 2. 非终结符集合
+    // 非终结符集合
     nonterminalId["P'"] = 0;
     nonterminalId["P"] = 1;
     nonterminalId["D"] = 2;
@@ -111,7 +111,7 @@ void Parser::buildGrammar()
     nonterminalId["T"] = 12;
     nonterminalId["F"] = 13;
 
-    // 3. 终结符集合
+    // 终结符集合
     terminalId["id"] = 0;
     terminalId["digits"] = 1;
     terminalId["int"] = 2;
@@ -132,7 +132,7 @@ void Parser::buildGrammar()
     terminalId[";"] = 17;
     terminalId["$"] = 18;
 
-    // 4. FIRST 集初始化
+    // FIRST 集初始化
     for (const auto &[term, id] : terminalId)
     {
         firstSets[term].insert(term);
@@ -143,7 +143,7 @@ void Parser::buildGrammar()
         firstSets[nonterm];
     }
 
-    // 5. 构造所有语法符号，用于项目集展开
+    // 构造所有语法符号，用于项目集展开
     allGrammarSymbols = {
         "id", "digits", "int", "float", "if", "else", "while",
         "+", "-", "*", "/", "=", "==", "<", ">",
@@ -296,7 +296,7 @@ set<LR1Item> Parser::goTo(const set<LR1Item> &items, const string &symbol) const
 }
 
 // 去重,算是高级功能,c++还是太难了
-string Parser::signature(const set<LR1Item> &items) const
+string Parser::qianming(const set<LR1Item> &items) const
 {
     vector<string> parts;
     parts.reserve(items.size());
@@ -338,7 +338,7 @@ string Parser::signature(const set<LR1Item> &items) const
 }
 
 // 图
-void Parser::buildCanonicalCollection()
+void Parser::buildStateGraph()
 {
     set<LR1Item> startItems;
     startItems.insert(LR1Item{0, 0, "$"});
@@ -352,7 +352,7 @@ void Parser::buildCanonicalCollection()
 
     states.push_back(startState);
     pending.push_back(startState);
-    stateIndex[signature(startState)] = 0;
+    stateIndex[qianming(startState)] = 0;
 
     while (!pending.empty())
     {
@@ -366,7 +366,7 @@ void Parser::buildCanonicalCollection()
             {
                 continue;
             }
-            string sig = signature(next);
+            string sig = qianming(next);
             if (stateIndex.count(sig) == 0)
             {
                 int newIndex = static_cast<int>(states.size());
@@ -381,10 +381,10 @@ void Parser::buildCanonicalCollection()
 // 辅助获取stateid
 int Parser::stateId(const set<LR1Item> &items) const
 {
-    string target = signature(items);
+    string target = qianming(items);
     for (size_t i = 0; i < states.size(); ++i)
     {
-        if (signature(states[i]) == target)
+        if (qianming(states[i]) == target)
         {
             return static_cast<int>(i);
         }
@@ -523,7 +523,7 @@ Parser::Parser(Lexer &lexer) : lexer(lexer), lookahead(-1, "$", -1)
 {
     buildGrammar();
     buildFirstSets();
-    buildCanonicalCollection();
+    buildStateGraph();
     buildTables();
 }
 
