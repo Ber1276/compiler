@@ -50,7 +50,7 @@ void Parser::buildGrammar()
     terminalId.clear();
     nonterminalId.clear();
     firstSets.clear();
-    allGrammarSymbols.clear();
+    suoyouYufaFuhao.clear();
 
     // 产生式,先一行一行手敲吧,后面优化
     productions.push_back({"P'", {"P"}});
@@ -147,7 +147,7 @@ void Parser::buildGrammar()
     }
 
     // 构造所有语法符号，用于项目集展开
-    allGrammarSymbols = {
+    suoyouYufaFuhao = {
         "id", "digits", "int", "float", "if", "else", "while",
         "+", "-", "*", "/", "=", "==", "<", ">",
         "(", ")", ";", "$",
@@ -362,7 +362,7 @@ void Parser::buildStateGraph()
         set<LR1Item> current = pending.back();
         pending.pop_back();
 
-        for (const string &symbol : allGrammarSymbols)
+        for (const string &symbol : suoyouYufaFuhao)
         {
             set<LR1Item> next = goTo(current, symbol);
             if (next.empty())
@@ -441,31 +441,31 @@ void Parser::buildTables()
 bool Parser::parse(bool printAstTree)
 {
     printAstTreeEnabled = printAstTree;
-    stateStack.clear();
-    symbolStack.clear();
+    zhuangtaiZhan.clear();
+    fuhaoZhan.clear();
     astStack.clear();
-    semanticStack.clear();
+    yuyiZhan.clear();
     tacTable.clear();
-    symbolTable.clear();
-    currentDeclType.clear();
-    tempCounter = 0;
-    labelCounter = 0;
+    fuhaobia.clear();
+    dangqianShengmingLeixing.clear();
+    linshiBianliangJishuqi = 0;
+    biaoqianJishuqi = 0;
     astRoot.reset();
-    stateStack.push_back(0);
-    symbolStack.push_back("$");
+    zhuangtaiZhan.push_back(0);
+    fuhaoZhan.push_back("$");
 
     advance();
 
     while (true)
     {
-        int state = stateStack.back();
+        int state = zhuangtaiZhan.back();
         string terminal = terminalOf(lookahead);
         ActionEntry act = action(state, terminal);
 
         if (act.type == ActionType::Shift) // 移进
         {
-            symbolStack.push_back(terminal);
-            stateStack.push_back(act.value);
+            fuhaoZhan.push_back(terminal);
+            zhuangtaiZhan.push_back(act.value);
 
             if (terminal != "$")
             {
@@ -492,7 +492,7 @@ bool Parser::parse(bool printAstTree)
                 default:
                     break;
                 }
-                semanticStack.push_back(value);
+                yuyiZhan.push_back(value);
             }
 
             advance();
@@ -508,10 +508,10 @@ bool Parser::parse(bool printAstTree)
 
             for (size_t i = 0; i < popCount; ++i)
             {
-                if (!symbolStack.empty())
-                    symbolStack.pop_back();
-                if (!stateStack.empty())
-                    stateStack.pop_back();
+                if (!fuhaoZhan.empty())
+                    fuhaoZhan.pop_back();
+                if (!zhuangtaiZhan.empty())
+                    zhuangtaiZhan.pop_back();
 
                 if (!astStack.empty())
                 {
@@ -519,10 +519,10 @@ bool Parser::parse(bool printAstTree)
                     astStack.pop_back();
                 }
 
-                if (!semanticStack.empty())
+                if (!yuyiZhan.empty())
                 {
-                    semanticChildren.push_back(semanticStack.back());
-                    semanticStack.pop_back();
+                    semanticChildren.push_back(yuyiZhan.back());
+                    yuyiZhan.pop_back();
                 }
             }
 
@@ -530,14 +530,14 @@ bool Parser::parse(bool printAstTree)
             reverse(semanticChildren.begin(), semanticChildren.end());
 
             string lhs = prod.lhs;
-            symbolStack.push_back(lhs);
+            fuhaoZhan.push_back(lhs);
 
             astStack.push_back(buildAstNode(prod, children));
-            semanticStack.push_back(buildSemanticValue(prod, semanticChildren));
+            yuyiZhan.push_back(buildSemanticValue(prod, semanticChildren));
 
-            int prevState = stateStack.back();
+            int prevState = zhuangtaiZhan.back();
             int nextState = goTo(prevState, lhs);
-            stateStack.push_back(nextState);
+            zhuangtaiZhan.push_back(nextState);
         }
         else if (act.type == ActionType::Accept)
         {
@@ -546,9 +546,9 @@ bool Parser::parse(bool printAstTree)
                 astRoot = astStack.back();
             }
 
-            if (!semanticStack.empty())
+            if (!yuyiZhan.empty())
             {
-                tacTable = semanticStack.back().code; // 结果输出
+                tacTable = yuyiZhan.back().code; // 结果输出
             }
 
             if (printAstTreeEnabled && astRoot)
@@ -571,7 +571,7 @@ void Parser::printSymbolTable() const
     cout << endl
          << "symbol table:" << endl;
     cout << left << setw(16) << "name" << setw(12) << "type" << setw(12) << "declared" << endl;
-    for (const auto &entry : symbolTable)
+    for (const auto &entry : fuhaobia)
     {
         cout << left << setw(16) << entry.second.name
              << setw(12) << entry.second.type
@@ -598,8 +598,8 @@ void Parser::printTacTable() const
 
 Parser::Parser(Lexer &lexer) : lexer(lexer), lookahead(-1, "$", -1)
 {
-    tempCounter = 0;
-    labelCounter = 0;
+    linshiBianliangJishuqi = 0;
+    biaoqianJishuqi = 0;
     buildGrammar();
     buildFirstSets();
     buildStateGraph();
@@ -645,12 +645,12 @@ vector<TacEntry> Parser::mergeCode(const vector<TacEntry> &left, const vector<Ta
 
 string Parser::newTemp()
 {
-    return "t" + to_string(++tempCounter);
+    return "t" + to_string(++linshiBianliangJishuqi);
 }
 
 string Parser::newLabel()
 {
-    return "L" + to_string(++labelCounter);
+    return "L" + to_string(++biaoqianJishuqi);
 }
 
 void Parser::emitTac(vector<TacEntry> &code, const string &op, const string &arg1, const string &arg2, const string &result) const
@@ -702,13 +702,13 @@ SemanticValue Parser::buildSemanticValue(const Production &prod, const vector<Se
                 throw runtime_error("语义错误: 声明语句缺少标识符");
             }
 
-            if (symbolTable.count(identifier))
+            if (fuhaobia.count(identifier))
             {
                 throw runtime_error("语义错误: 标识符重复声明 -> " + identifier);
             }
 
-            symbolTable[identifier] = SymbolInfo{identifier, typeName, true};
-            currentDeclType = typeName;
+            fuhaobia[identifier] = SymbolInfo{identifier, typeName, true};
+            dangqianShengmingLeixing = typeName;
             result.code = children[3].code;
         }
         return result;
@@ -787,8 +787,8 @@ SemanticValue Parser::buildSemanticValue(const Production &prod, const vector<Se
             const string identifier = children[0].name.empty() ? children[0].place : children[0].name;
             const string expressionPlace = children[2].place.empty() ? children[2].name : children[2].place;
 
-            auto symbolIt = symbolTable.find(identifier);
-            if (symbolIt == symbolTable.end())
+            auto symbolIt = fuhaobia.find(identifier);
+            if (symbolIt == fuhaobia.end())
             {
                 throw runtime_error("语义错误: 变量未声明 -> " + identifier);
             }
@@ -932,7 +932,7 @@ SemanticValue Parser::buildSemanticValue(const Production &prod, const vector<Se
             if (prod.rhs[0] == "id")
             {
                 const string identifier = result.name.empty() ? result.place : result.name;
-                if (symbolTable.count(identifier) == 0)
+                if (fuhaobia.count(identifier) == 0)
                 {
                     throw runtime_error("语义错误: 变量未声明 -> " + identifier);
                 }

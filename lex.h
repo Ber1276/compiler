@@ -28,10 +28,10 @@ public:
     void reset(const string &source);
 
 private:
-    string inputBuffer;
+    string shuruHuancun;
     size_t pos;
-    unordered_map<string, int> keywordTable;
-    unordered_map<string, int> operatorTable;
+    unordered_map<string, int> guanjianbiao;
+    unordered_map<string, int> yunsuanzibiao;
 
     // 辅助函数声明
     void skipWhitespace();

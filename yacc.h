@@ -93,10 +93,10 @@ private:
     // 数据结构
     Lexer &lexer;
     Token lookahead;
-    vector<int> stateStack;
-    vector<string> symbolStack;
+    vector<int> zhuangtaiZhan;
+    vector<string> fuhaoZhan;
     vector<shared_ptr<AstNode>> astStack;
-    vector<SemanticValue> semanticStack;
+    vector<SemanticValue> yuyiZhan;
     shared_ptr<AstNode> astRoot;
     bool printAstTreeEnabled;
 
@@ -108,13 +108,13 @@ private:
     unordered_map<string, int> nonterminalId;
     map<pair<int, string>, ActionEntry> actionTable;
     map<pair<int, string>, int> gotoTable;
-    unordered_map<string, SymbolInfo> symbolTable;
+    unordered_map<string, SymbolInfo> fuhaobia;
     vector<string> traceLines; // 分析guocheng保留
-    string currentDeclType;
-    vector<string> allGrammarSymbols;
+    string dangqianShengmingLeixing;
+    vector<string> suoyouYufaFuhao;
     vector<TacEntry> tacTable;
-    int tempCounter;
-    int labelCounter;
+    int linshiBianliangJishuqi;
+    int biaoqianJishuqi;
 
     // 做表用的
     void advance();

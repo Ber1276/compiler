@@ -9,9 +9,9 @@ using namespace std;
 
 string PreprocessFile(const string &filename)
 {
-    string processed;            // save resule
-    bool inBlockComment = false; // block comment
-    bool lastWasSpace = false;   // is white flag
+    string yichuliWenben;             // save resule
+    bool shifouZaiKuaiZhuShi = false; // block comment
+    bool shangciShiKongge = false;    // is white flag
 
     ifstream file(filename);
     if (!file.is_open())
@@ -28,26 +28,26 @@ string PreprocessFile(const string &filename)
 
         while (i < len)
         {
-            if (!inBlockComment && i < len - 1 && line[i] == '/' && line[i + 1] == '/')
+            if (!shifouZaiKuaiZhuShi && i < len - 1 && line[i] == '/' && line[i + 1] == '/')
             {
                 break; // ignore
             } // meet //
 
-            if (!inBlockComment && i < len - 1 && line[i] == '/' && line[i + 1] == '*')
+            if (!shifouZaiKuaiZhuShi && i < len - 1 && line[i] == '/' && line[i + 1] == '*')
             {
-                inBlockComment = true;
+                shifouZaiKuaiZhuShi = true;
                 i += 2;
                 continue;
             } // meet /* (block comment start)
 
-            if (inBlockComment && i < len - 1 && line[i] == '*' && line[i + 1] == '/')
+            if (shifouZaiKuaiZhuShi && i < len - 1 && line[i] == '*' && line[i + 1] == '/')
             {
-                inBlockComment = false;
+                shifouZaiKuaiZhuShi = false;
                 i += 2;
                 continue;
             } // meet */ (block comment end)
 
-            if (inBlockComment)
+            if (shifouZaiKuaiZhuShi)
             {
                 i++;
                 continue;
@@ -55,23 +55,23 @@ string PreprocessFile(const string &filename)
 
             if (isspace(line[i]))
             {
-                if (!lastWasSpace)
+                if (!shangciShiKongge)
                 {
-                    processed += ' ';
-                    lastWasSpace = true;
+                    yichuliWenben += ' ';
+                    shangciShiKongge = true;
                 }
             }
             else
             {
-                processed += line[i];
-                lastWasSpace = false;
+                yichuliWenben += line[i];
+                shangciShiKongge = false;
             }
             i++;
         }
     }
 
     file.close();
-    return processed;
+    return yichuliWenben;
 }
 
 unordered_map<string, int> buildTable(initializer_list<string> items, int startCode)
@@ -85,29 +85,29 @@ unordered_map<string, int> buildTable(initializer_list<string> items, int startC
     return table;
 }
 
-Lexer::Lexer(const string &source) : inputBuffer(source), pos(0)
+Lexer::Lexer(const string &source) : shuruHuancun(source), pos(0)
 {
     initTables();
 }
 
 void Lexer::reset(const string &source)
 {
-    inputBuffer = source;
+    shuruHuancun = source;
     pos = 0;
 }
 
 bool Lexer::isEnd() const
 {
-    return pos >= inputBuffer.size();
+    return pos >= shuruHuancun.size();
 }
 void Lexer::initTables()
 {
 
-    keywordTable = buildTable(
+    guanjianbiao = buildTable(
         {"int", "float", "if", "else", "while", "for", "void", "return"},
         1);
 
-    operatorTable = buildTable(
+    yunsuanzibiao = buildTable(
         {"+", "-", "*", "/", "=", "==", "!=", "<", ">", "(", ")", "{", "}", ";"}, // 19-23 mean seprator
         10);
 }
@@ -122,7 +122,7 @@ void Lexer::initTables()
 
 void Lexer::skipWhitespace()
 {
-    while (pos < inputBuffer.size() && isspace(inputBuffer[pos]))
+    while (pos < shuruHuancun.size() && isspace(shuruHuancun[pos]))
     {
         pos++;
     }
@@ -131,13 +131,13 @@ void Lexer::skipWhitespace()
 string Lexer::getOperator()
 {
     string op;
-    char c = inputBuffer[pos];
-    if (pos + 1 < inputBuffer.size()) // two char operator
+    char c = shuruHuancun[pos];
+    if (pos + 1 < shuruHuancun.size()) // two char operator
     {
         string twoCharOp;
         twoCharOp += c;
-        twoCharOp += inputBuffer[pos + 1];
-        if (operatorTable.count(twoCharOp))
+        twoCharOp += shuruHuancun[pos + 1];
+        if (yunsuanzibiao.count(twoCharOp))
         {
             pos += 2;
             return twoCharOp;
@@ -153,19 +153,19 @@ string Lexer::getOperator()
 // vector<Token> analyze()
 // {
 //     vector<Token> tokens;
-//     while (pos < inputBuffer.size())
+//     while (pos < shuruHuancun.size())
 //     {
 //         skipWhitespace();
-//         if (pos >= inputBuffer.size())
+//         if (pos >= shuruHuancun.size())
 //             break;
-//         char c = inputBuffer[pos];
+//         char c = shuruHuancun[pos];
 //         // ----number----
 //         if (isdigit(c))
 //         {
 //             string num;
-//             while (pos < inputBuffer.size() && isdigit(inputBuffer[pos]))
+//             while (pos < shuruHuancun.size() && isdigit(shuruHuancun[pos]))
 //             {
-//                 num += inputBuffer[pos];
+//                 num += shuruHuancun[pos];
 //                 pos++;
 //             }
 //             int value = stoi(num);
@@ -176,9 +176,9 @@ string Lexer::getOperator()
 //         if (isalpha(c) || c == '_')
 //         {
 //             string word;
-//             while (pos < inputBuffer.size() && (isalnum(inputBuffer[pos]) || inputBuffer[pos] == '_'))
+//             while (pos < shuruHuancun.size() && (isalnum(shuruHuancun[pos]) || shuruHuancun[pos] == '_'))
 //             {
-//                 word += inputBuffer[pos];
+//                 word += shuruHuancun[pos];
 //                 pos++;
 //             }
 //             if (keywordTable.count(word))
@@ -211,16 +211,16 @@ Token Lexer::nextToken()
 {
 
     skipWhitespace();
-    if (pos >= inputBuffer.size())
+    if (pos >= shuruHuancun.size())
         return Token(-1, "", -1);
-    char c = inputBuffer[pos];
+    char c = shuruHuancun[pos];
     // ----number----
     if (isdigit(c))
     {
         string num;
-        while (pos < inputBuffer.size() && isdigit(inputBuffer[pos]))
+        while (pos < shuruHuancun.size() && isdigit(shuruHuancun[pos]))
         {
-            num += inputBuffer[pos];
+            num += shuruHuancun[pos];
             pos++;
         }
         int value = stoi(num);
@@ -230,14 +230,14 @@ Token Lexer::nextToken()
     if (isalpha(c) || c == '_')
     {
         string word;
-        while (pos < inputBuffer.size() && (isalnum(inputBuffer[pos]) || inputBuffer[pos] == '_'))
+        while (pos < shuruHuancun.size() && (isalnum(shuruHuancun[pos]) || shuruHuancun[pos] == '_'))
         {
-            word += inputBuffer[pos];
+            word += shuruHuancun[pos];
             pos++;
         }
-        if (keywordTable.count(word))
+        if (guanjianbiao.count(word))
         {
-            int code = keywordTable[word];
+            int code = guanjianbiao[word];
             return Token(code, word, -1);
         }
         else
@@ -247,9 +247,9 @@ Token Lexer::nextToken()
     }
     //-----operator--
     string op = getOperator();
-    if (operatorTable.count(op))
+    if (yunsuanzibiao.count(op))
     {
-        int code = operatorTable[op];
+        int code = yunsuanzibiao[op];
         return Token(code, op, -1);
     }
 
