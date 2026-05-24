@@ -50,7 +50,7 @@ void Parser::buildGrammar()
     terminalId.clear();
     nonterminalId.clear();
     firstSets.clear();
-    suoyouYufaFuhao.clear();
+    suoyouYufaSymbol.clear();
 
     // 产生式,先一行一行手敲吧,后面优化
     productions.push_back({"P'", {"P"}});
@@ -147,7 +147,7 @@ void Parser::buildGrammar()
     }
 
     // 构造所有语法符号，用于项目集展开
-    suoyouYufaFuhao = {
+    suoyouYufaSymbol = {
         "id", "digits", "int", "float", "if", "else", "while",
         "+", "-", "*", "/", "=", "==", "<", ">",
         "(", ")", ";", "$",
@@ -193,7 +193,7 @@ void Parser::buildFirstSets()
     }
 }
 // 产生一个first_s集
-set<string> Parser::firstOfSequence(const vector<string> &symbols) const
+set<string> Parser::first_s(const vector<string> &symbols) const
 {
     set<string> result;
     bool allNullable = true;
@@ -255,8 +255,8 @@ set<LR1Item> Parser::closure(const set<LR1Item> &items) const
             {
                 betaA.push_back(prod.rhs[i]);
             }
-            betaA.push_back(item.lookahead);                 // 包含前向符号
-            set<string> lookaheads = firstOfSequence(betaA); // 通过前向符号得到的新项目的前向符号
+            betaA.push_back(item.lookahead);         // 包含前向符号
+            set<string> lookaheads = first_s(betaA); // 通过前向符号得到的新项目的前向符号
             for (int i = 0; i < productions.size(); i++)
             {
                 if (productions[i].lhs != symbolAfterDot)
@@ -362,7 +362,7 @@ void Parser::buildStateGraph()
         set<LR1Item> current = pending.back();
         pending.pop_back();
 
-        for (const string &symbol : suoyouYufaFuhao)
+        for (const string &symbol : suoyouYufaSymbol)
         {
             set<LR1Item> next = goTo(current, symbol);
             if (next.empty())

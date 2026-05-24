@@ -208,7 +208,7 @@ void Lexer::recordSymbol(const Token &token)
 //     {"+", 10}, {"-", 11}, {"*", 12}, {"/", 13}, {"=", 14}, {"==", 15}, {"!=", 16}, {"<", 17}, {">", 18}, {"(", 20}, {")", 21}, {"{", 22}, {"}", 23}, {";", 24}};
 // 改成按照基数自增的,方便后面改
 
-void Lexer::skipWhitespace()
+void Lexer::skipSpace()
 {
     while (pos < shuruHuancun.size() && isspace(shuruHuancun[pos]))
     {
@@ -298,7 +298,7 @@ string Lexer::getOperator()
 Token Lexer::nextToken()
 {
 
-    skipWhitespace();
+    skipSpace();
     if (pos >= shuruHuancun.size())
         return Token(-1, "", -1);
     char c = shuruHuancun[pos];

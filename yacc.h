@@ -111,7 +111,7 @@ private:
     unordered_map<string, SymbolInfo> fuhaobia;
     vector<string> traceLines; // 分析guocheng保留
     string dangqianShengmingLeixing;
-    vector<string> suoyouYufaFuhao;
+    vector<string> suoyouYufaSymbol;
     vector<TacEntry> tacTable;
     int linshiBianliangJishuqi;
     int biaoqianJishuqi;
@@ -121,7 +121,7 @@ private:
     void buildGrammar();
     void buildFirstSets();
     string qianming(const set<LR1Item> &items) const;
-    set<string> firstOfSequence(const vector<string> &symbols) const;
+    set<string> first_s(const vector<string> &symbols) const;
     set<LR1Item> closure(const set<LR1Item> &items) const;
     set<LR1Item> goTo(const set<LR1Item> &items, const string &symbol) const;
     void buildStateGraph();

@@ -47,7 +47,7 @@ private:
     unordered_set<string> symbolNames;
 
     // 辅助函数声明
-    void skipWhitespace();
+    void skipSpace();
 
     string getOperator();
     void initTables();
