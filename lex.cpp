@@ -74,6 +74,66 @@ string PreprocessFile(const string &filename)
     return yichuliWenben;
 }
 
+string preprocessInput(istream &input)
+{
+    string result;
+    bool inBlockComment = false;
+    bool lastWasSpace = false;
+
+    string line;
+    while (getline(input, line))
+    {
+        int i = 0;
+        int len = static_cast<int>(line.length());
+
+        while (i < len)
+        {
+            if (!inBlockComment && i < len - 1 && line[i] == '/' && line[i + 1] == '/')
+            {
+                break;
+            }
+
+            if (!inBlockComment && i < len - 1 && line[i] == '/' && line[i + 1] == '*')
+            {
+                inBlockComment = true;
+                i += 2;
+                continue;
+            }
+
+            if (inBlockComment && i < len - 1 && line[i] == '*' && line[i + 1] == '/')
+            {
+                inBlockComment = false;
+                i += 2;
+                continue;
+            }
+
+            if (inBlockComment)
+            {
+                i++;
+                continue;
+            }
+
+            unsigned char ch = static_cast<unsigned char>(line[i]);
+            if (isspace(ch))
+            {
+                if (!lastWasSpace)
+                {
+                    result += ' ';
+                    lastWasSpace = true;
+                }
+            }
+            else
+            {
+                result += line[i];
+                lastWasSpace = false;
+            }
+            i++;
+        }
+    }
+
+    return result;
+}
+
 unordered_map<string, int> buildTable(initializer_list<string> items, int startCode)
 {
     unordered_map<string, int> table;
